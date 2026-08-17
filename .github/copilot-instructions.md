@@ -1,6 +1,6 @@
 # Copilot instructions for vipps-hyva-magento
 
-This repository is owned by the **team-devex-and-ai-lab-owners** team at Vipps MobilePay.
+This repository is owned by the **plugin-owners** team at Vipps MobilePay.
 
 ## Project conventions
 
