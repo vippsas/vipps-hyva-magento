@@ -35,7 +35,7 @@ This plugin is available for download at
 
 ## Support
 
-*Vipps/MobilePay Payment Module for Adobe Commerce* is developed by [bluemint](https://www.bluemint.no/), and the same developers who made
+*Vipps/MobilePay Payment Hyvä Compatibility Module for Adobe Commerce* is developed by [bluemint](https://www.bluemint.no/), and the same developers who made
 the Vipps/MobilePay Payment module also help with improvements, maintenance and developer assistance.
 
 If you are having a problem, please make sure that you are using the latest version:
