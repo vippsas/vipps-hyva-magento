@@ -1,0 +1,74 @@
+<?php
+/** @var $block \Vipps\Payment\Block\Express\Button */
+
+$isInCatalogProduct = (bool) $block->getIsInCatalogProduct();
+$shortcutHtmlId = $escaper->escapeHtml($block->getShortcutHtmlId());
+/*
+ * Use unique alpineJs script for each button
+ * Based on configuration the button can be on PDP or minicart + PDP/cart
+ */
+$uniqueId = uniqid('vippsCheckout_');
+?>
+
+<div
+    x-data="<?= $uniqueId ?>()"
+>
+    <a class="vipps-express-checkout vipps-express-checkout-button"
+       href="#"
+       aria-label="<?= $escaper->escapeHtml(__('Buy now with') . ' ' . $block->getLabel()) ?>"
+       @click.prevent="redirect($event)"
+       data-redirect-url="<?= $escaper->escapeUrl($block->getUrl('vipps/payment/initExpress')) ?>"
+    >
+        <?= $block->getButtonImage(); ?>
+    </a>
+
+    <script>
+        function <?= $uniqueId ?>() {
+            return {
+                isCatalogProduct: <?= $isInCatalogProduct ? 'true' : 'false' ?>,
+
+                redirect(event) {
+                    const button = event.currentTarget;
+                    const returnUrl = button.dataset.redirectUrl;
+
+                    // Trigger add to cart event if button is on catalog product page first before going to Vipps
+                    if (this.isCatalogProduct) {
+                        const form = document.getElementById('product_addtocart_form');
+
+                        if (!form) {
+                            console.error('Vipps Checkout: product_addtocart_form not found');
+                            return;
+                        }
+
+                        let input = form.querySelector('[data-role="vipps-checkout-url"]');
+
+                        if (!input) {
+                            input = document.createElement('input');
+                            input.type = 'hidden';
+                            input.name = 'return_url';
+                            input.dataset.role = 'vipps-checkout-url';
+                            form.appendChild(input);
+                        }
+
+                        input.value = returnUrl;
+
+                        const submitEvent = new Event('submit', {
+                            bubbles: true,
+                            cancelable: true
+                        });
+
+                        form.dispatchEvent(submitEvent);
+
+                        if (!submitEvent.defaultPrevented) {
+                            form.submit();
+                        }
+
+                        return;
+                    }
+
+                    window.location.href = returnUrl;
+                }
+            }
+        }
+    </script>
+</div>
