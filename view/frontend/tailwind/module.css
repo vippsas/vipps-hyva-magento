@@ -1,0 +1,4 @@
+@source "../templates/**/*.phtml";
+@source "../layout/**/*.xml";
+
+@import "./vipps-payment.css";

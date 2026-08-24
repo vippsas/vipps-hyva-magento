@@ -1,0 +1,20 @@
+{
+  "name": "vipps/module-payment-hyva",
+  "description": "Hyvä compatibility tweaks for Vipps Payment",
+  "type": "magento2-module",
+  "version": "1.0.0",
+  "license": "proprietary",
+  "require": {
+    "magento/framework": "*",
+    "vipps/module-payment": ">=3.0.1",
+    "hyva-themes/magento2-compat-module-fallback": "*"
+  },
+  "autoload": {
+    "files": [
+        "registration.php"
+    ],
+    "psr-4": {
+      "Vipps\\HyvaPayment\\": ""
+    }
+  }
+}

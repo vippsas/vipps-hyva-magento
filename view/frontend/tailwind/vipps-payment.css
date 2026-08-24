@@ -1,0 +1,24 @@
+#cart-drawer .vipps-express-checkout svg {
+    @apply w-full;
+}
+
+.vipps-express-checkout svg {
+    @apply max-w-full align-top;
+    filter: drop-shadow( 0px 1px 2px #d7d7d7);
+    color: #ff5b24;
+}
+
+.vipps-express-checkout:hover svg {
+    @apply opacity-90;
+}
+
+.vipps-express-checkout.vipps-express-checkout-button:hover svg {
+    opacity: 1;
+    color: #ff985f;
+}
+
+.vipps-express-checkout {
+    @apply max-w-full align-top cursor-pointer;
+    background-color: inherit;
+    filter: drop-shadow(0px 1px 2px #d7d7d7);
+}
