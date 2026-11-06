@@ -1,0 +1,164 @@
+<?php
+/**
+ * Hyvä version of Vipps_Payment::cart-restore.phtml: restores the Express cart on non-cart pages and the back
+ * button, then checks for an approved payment. Keep in step with Vipps_Payment::js/vipps-cart-restore.js.
+ */
+
+/** @var \Magento\Framework\View\Element\Template $block */
+/** @var \Magento\Framework\Escaper $escaper */
+/** @var \Hyva\Theme\ViewModel\HyvaCsp $hyvaCsp */
+?>
+<script>
+    (() => {
+        'use strict';
+
+        const PENDING_COOKIE = 'vipps_pending_quote_id';
+        const RESTORED_COOKIE = 'vipps_cart_restored';
+        const restoreUrl = '<?= $escaper->escapeJs($block->getUrl('vipps/payment/restoreCart')) ?>';
+        const checkReturnUrl = '<?= $escaper->escapeJs($block->getUrl('vipps/payment/checkReturn')) ?>';
+        const successUrl = '<?= $escaper->escapeJs($block->getUrl('checkout/onepage/success')) ?>';
+
+        // Full-page loader while the payment is checked; left up when redirecting. Styled via the DOM, not classes,
+        // so it needs no Tailwind build and no inline-style CSP allowance.
+        let loader = null;
+
+        function showLoader() {
+            if (loader) {
+                return;
+            }
+            loader = document.createElement('div');
+            loader.setAttribute('role', 'status');
+            loader.setAttribute('aria-live', 'polite');
+            Object.assign(loader.style, {
+                position: 'fixed', inset: '0', zIndex: '9999', display: 'flex', alignItems: 'center',
+                justifyContent: 'center', background: 'rgba(255, 255, 255, 0.6)'
+            });
+            const ns = 'http://www.w3.org/2000/svg';
+            const svg = document.createElementNS(ns, 'svg');
+            svg.setAttribute('width', '48');
+            svg.setAttribute('height', '48');
+            svg.setAttribute('viewBox', '0 0 50 50');
+            svg.setAttribute('aria-hidden', 'true');
+            const circle = document.createElementNS(ns, 'circle');
+            for (const [name, value] of Object.entries({
+                cx: '25', cy: '25', r: '20', fill: 'none', stroke: 'currentColor', 'stroke-width': '5',
+                'stroke-linecap': 'round', 'stroke-dasharray': '90 150'
+            })) {
+                circle.setAttribute(name, value);
+            }
+            const spin = document.createElementNS(ns, 'animateTransform');
+            for (const [name, value] of Object.entries({
+                attributeName: 'transform', type: 'rotate', from: '0 25 25', to: '360 25 25', dur: '0.9s',
+                repeatCount: 'indefinite'
+            })) {
+                spin.setAttribute(name, value);
+            }
+            circle.appendChild(spin);
+            svg.appendChild(circle);
+            loader.appendChild(svg);
+            document.body.appendChild(loader);
+        }
+
+        function hideLoader() {
+            if (loader) {
+                loader.remove();
+                loader = null;
+            }
+        }
+
+        function getCookie(name) {
+            const match = document.cookie.match(new RegExp('(?:^|; )' + name + '=([^;]*)'));
+            return match ? decodeURIComponent(match[1]) : null;
+        }
+
+        /**
+         * Make Hyvä refetch all sections; clearing mage-cache-sessid marks its stored copy invalid, which a
+         * restore on a GET request would not otherwise do.
+         */
+        function refreshPrivateContent() {
+            document.cookie = 'mage-cache-sessid=; path=/; max-age=0';
+            window.dispatchEvent(new Event('reload-customer-section-data'));
+        }
+
+        /**
+         * Asks whether the restored cart's payment was already approved; runs after render, never blocking it.
+         */
+        // refresh: update the cart and messages unless redirecting, so an approved cart never flashes as restored.
+        function checkReturn(refresh) {
+            const body = new URLSearchParams({form_key: hyva.getFormKey()});
+
+            fetch(checkReturnUrl, {
+                method: 'POST',
+                headers: {'X-Requested-With': 'XMLHttpRequest'},
+                body: body
+            })
+                .then((response) => response.json())
+                .then((data) => {
+                    if (data.orderPlaced && data.redirectUrl) {
+                        window.location.assign(data.redirectUrl);
+                        return;
+                    }
+                    if (refresh || data.pending) {
+                        refreshPrivateContent();
+                    }
+                    hideLoader();
+                })
+                .catch(() => {
+                    if (refresh) {
+                        refreshPrivateContent();
+                    }
+                    hideLoader();
+                });
+        }
+
+        function ajaxRestore() {
+            showLoader();
+            fetch(restoreUrl, {
+                method: 'POST',
+                headers: {'X-Requested-With': 'XMLHttpRequest'}
+            })
+                .then((response) => response.json())
+                .then((data) => {
+                    if (data.restored) {
+                        // The cart and the restore notice are refreshed once checkReturn has answered.
+                        checkReturn(true);
+                    } else {
+                        hideLoader();
+                    }
+                })
+                .catch(hideLoader);
+        }
+
+        if (window.location.href.indexOf(successUrl) !== -1) {
+            refreshPrivateContent();
+            return;
+        }
+
+        // Back button: the page comes from bfcache and no PHP ran, so restore over AJAX on any page.
+        window.addEventListener('pageshow', (event) => {
+            if (!event.persisted) {
+                return;
+            }
+            // Back from the confirmation can restore this page with the loader still up.
+            hideLoader();
+            if (getCookie(PENDING_COOKIE)) {
+                ajaxRestore();
+            }
+        });
+
+        // The cart page restored server side: bring the minicart and messages in step.
+        if (getCookie(RESTORED_COOKIE)) {
+            document.cookie = RESTORED_COOKIE + '=; path=/; max-age=0';
+            refreshPrivateContent();
+            showLoader();
+            checkReturn(false);
+            return;
+        }
+
+        // Any other page: the server-side restore did not run, so restore over AJAX.
+        if (getCookie(PENDING_COOKIE)) {
+            ajaxRestore();
+        }
+    })();
+</script>
+<?php $hyvaCsp->registerInlineScript() ?>
