@@ -26,8 +26,89 @@ $uniqueId = uniqid('vippsCheckout_');
         function <?= $uniqueId ?>() {
             return {
                 isCatalogProduct: <?= $isInCatalogProduct ? 'true' : 'false' ?>,
+                widgetSdkEnabled: <?= $block->getWidgetSdkEnabled() ? 'true' : 'false' ?>,
+                widgetTriggerUrl: '<?= $escaper->escapeJs($block->getWidgetTriggerUrl()) //@codingStandardsIgnoreLine ?>',
+                widgetLanguage: '<?= $escaper->escapeJs($block->getWidgetLanguage()) //@codingStandardsIgnoreLine ?>',
+                widgetTrigger: null,
+                returnUrl: null,
+
+                init() {
+                    if (!this.widgetSdkEnabled || typeof window.vipps === 'undefined') {
+                        return;
+                    }
+
+                    if (!window.vippsWidgetHostStarted) {
+                        window.vipps.host().start();
+                        window.vippsWidgetHostStarted = true;
+                    }
+
+                    // On desktop the SDK may load the return URL in its cookie-less iframe, so repeat it in this
+                    // tab where Fallback runs in the shopper's session: restores the cart or shows the confirmation.
+                    this.widgetTrigger = window.vipps.trigger(() => this.createSession())
+                        .on('success', (close, redirectUrl) => this.returnToStore(close, redirectUrl))
+                        .on('cancel', (close) => this.returnToStore(close));
+                },
+
+                returnToStore(close, redirectUrl) {
+                    if (typeof close === 'function') {
+                        close();
+                    }
+
+                    const url = this.returnUrl || redirectUrl;
+                    url ? window.location.assign(url) : window.location.reload();
+                },
+
+                async createSession() {
+                    if (this.isCatalogProduct) {
+                        await this.addToCart();
+                    }
+
+                    const response = await fetch(this.widgetTriggerUrl, {
+                        method: 'POST',
+                        headers: {'X-Requested-With': 'XMLHttpRequest'}
+                    }).then((r) => r.json());
+
+                    // An earlier payment for this cart was already approved: go to the order, or to the cart
+                    // where the shopper is told it is being completed, instead of paying again.
+                    if (response && response.redirectUrl) {
+                        window.location.assign(response.redirectUrl);
+
+                        return new Promise(() => {});
+                    }
+
+                    if (!response || !response.paymentUrl) {
+                        throw new Error((response && response.message) || 'Vipps Widget: unable to start payment.');
+                    }
+
+                    this.returnUrl = response.returnUrl || null;
+
+                    return response.paymentUrl;
+                },
+
+                async addToCart() {
+                    const form = document.getElementById('product_addtocart_form');
+
+                    if (!form) {
+                        throw new Error('Vipps Widget: product_addtocart_form not found');
+                    }
+
+                    const response = await fetch(form.action, {
+                        method: 'POST',
+                        headers: {'X-Requested-With': 'XMLHttpRequest'},
+                        body: new FormData(form)
+                    }).then((r) => r.json());
+
+                    if (response && response.product && response.product.statusText) {
+                        throw new Error(response.product.statusText);
+                    }
+                },
 
                 redirect(event) {
+                    if (this.widgetSdkEnabled && this.widgetTrigger) {
+                        this.widgetTrigger.open(this.widgetLanguage ? {language: this.widgetLanguage} : undefined);
+                        return;
+                    }
+
                     const button = event.currentTarget;
                     const returnUrl = button.dataset.redirectUrl;
 
@@ -37,6 +118,10 @@ $uniqueId = uniqid('vippsCheckout_');
 
                         if (!form) {
                             console.error('Vipps Checkout: product_addtocart_form not found');
+                            return;
+                        }
+
+                        if (!form.reportValidity()) {
                             return;
                         }
 

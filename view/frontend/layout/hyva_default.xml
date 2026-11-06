@@ -3,4 +3,7 @@
     <head>
         <remove src="Vipps_Payment::css/vipps_styles.css"/>
     </head>
+    <body>
+        <referenceBlock name="vipps.cart.restore" template="Vipps_HyvaPayment::cart-restore.phtml"/>
+    </body>
 </page>
